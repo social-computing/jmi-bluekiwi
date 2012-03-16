@@ -10,6 +10,8 @@
 			<URL-connection type="GET">
 				<url>{$dimeloserverurl}/rest/dimelo/maps/map.json</url>
 				<url-header name="Cookie">JSESSIONID={$jsessionid}</url-header>
+				<url-parameter name="token">{$token}</url-parameter>
+				<url-parameter name="query">{$query}</url-parameter>
 			</URL-connection>
 	
 			<REST-entity markup="entities" id="id">
