@@ -24,12 +24,10 @@
   <name>Just Map It ! - Bluekiwi</name>
   <url>http://bluekiwi.just-map-it.com/</url>
  
-  <!-- Uncomment when submodules are created ! -->
-  <!--
+  <!-- Submodules -->
   <modules>
     <module>bluekiwi-web</module>
   </modules>
-  -->
 
   <repositories>
     <!-- Social computing 3rd party repository -->
