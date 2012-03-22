@@ -1,6 +1,24 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<%@page import="java.net.URLEncoder"%>
+<%@page import="com.socialcomputing.bluekiwi.services.RestProvider"%>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
+<%
+String token = (String) session.getAttribute("oauth_token");
+if(token == null) {
+	token = request.getParameter("access_token");
+	if(token == null) {
+		String code = request.getParameter("code");
+		if(code != null) {
+			token = RestProvider.getAccessToken(code, session);
+		}
+		else {
+			response.sendRedirect(RestProvider.AUTHORIZE_ENDPOINT + "?client_id=" + RestProvider.CLIENT_ID + "&response_type=code&redirect_uri=" + URLEncoder.encode(RestProvider.CALLBACK_URL, "UTF-8"));
+		}
+	}
+}
+%>
+
 <title>Just Map It! Lecko</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="viewport" content="target- densitydpi=device-dpi, width=device-width, user-scalable=no"/>
@@ -22,14 +40,15 @@ String query = request.getParameter("query");
 if( query == null) {
     query = "";
  }%>
-<link rel="stylesheet" type="text/css" href="../jmi-client/jmi-client.css" />
-<script type="text/javascript" src="../jmi-client/jmi-client.js"></script>
+<link rel="stylesheet" type="text/css" href="./jmi-client/jmi-client.css" />
+<script type="text/javascript" src="./jmi-client/jmi-client.js"></script>
 <script type="text/javascript">
 function getParams() {
 	var p = {
 		map: 'BlueKiwi',
 		jsessionid: '<%=session.getId()%>',
-		query: '<%=query%>'
+		query: '<%=query%>',
+		token: '<%=token%>'
     };
     return p;
 };
@@ -82,6 +101,7 @@ function JMIF_Center(map, args) {
 	<tr>
 		<td><a title="Just Map It! Lecko" href="./"><img alt="Just Map It! Lecko" src="./images/logo_lecko.gif" /></a></td>
 		<td>
+		    <input type="hidden" name="access_token" value="<%=token%>" />
 			<input type="text" name="query" title="Query" size="80" value="<%=query%>" />
 			<input type="submit" value="Just Map It!" />
 		</td>
