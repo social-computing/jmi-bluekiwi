@@ -3,7 +3,10 @@ package com.socialcomputing.bluekiwi.services;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
@@ -107,7 +110,21 @@ public class RestProvider {
         return storeHelper.toJson();
     }
     
-    public static String getAccessToken(String code, HttpSession session) throws JsonProcessingException, IOException, WPSConnectorException {
+    
+    /**
+     * Helper function used to get a user access token from a 
+     * code returned by bluekiwi after authentication
+     * 
+     * @param code     the retruned code
+     * @param session  the current user http session
+     * @return         an access token
+     * 
+     * @throws JsonProcessingException
+     * @throws IOException
+     * @throws WPSConnectorException
+     */
+    public static String getAccessToken(String code, HttpSession session) 
+    		throws JsonProcessingException, IOException, WPSConnectorException {
     	UrlHelper urlHelper = new UrlHelper(UrlHelper.Type.POST, TOKEN_ENDPOINT);
     	urlHelper.addParameter("client_id", CLIENT_ID);
     	urlHelper.addParameter("client_secret", CLIENT_SECRET);
@@ -123,14 +140,34 @@ public class RestProvider {
     }
     
     
+    /**
+     * Helper function to add the supertoken with the appropriate 
+     * sha1 signature before the api call
+     * 
+     * Warning, this function changes the http client state
+     * 
+     * @param urlHelper  the http client 
+     * @param superToken super token to add 
+     */
     public static void addSuperToken(UrlHelper urlHelper, String superToken) {
     	// Signing the request
     	long now = new Date().getTime()  / 1000;
+    	
+    	// Add oauth required parameters 
     	urlHelper.addParameter("oauth_timestamp", String.valueOf(now));
     	urlHelper.addParameter("oauth_token", superToken);
     	
+    	// Order parameters by name, ascending
+    	List<NameValuePair> parameters = urlHelper.getParameters();
+    	Collections.sort(parameters, new Comparator<NameValuePair>() {
+            public int compare(NameValuePair e1, NameValuePair e2) {
+                return e1.getName().compareTo(e2.getName());
+            }
+        });
+    	
+    	// Generates the sha1 signature of the parameters and add it to the parameters
     	String signParameters = "";
-    	for(NameValuePair parameter : urlHelper.getParameters()) {
+    	for(NameValuePair parameter : parameters) {
     		signParameters += "&" + parameter.getName() + "=" + parameter.getValue();  
     	}
     	signParameters = signParameters.substring(1);
