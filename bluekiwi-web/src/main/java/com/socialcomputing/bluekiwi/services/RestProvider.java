@@ -1,12 +1,11 @@
 package com.socialcomputing.bluekiwi.services;
 
+import static com.socialcomputing.wps.server.planDictionnary.connectors.utils.UrlHelper.Type.POST;
+
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -35,7 +34,6 @@ import com.socialcomputing.wps.server.planDictionnary.connectors.datastore.Entit
 import com.socialcomputing.wps.server.planDictionnary.connectors.datastore.StoreHelper;
 import com.socialcomputing.wps.server.planDictionnary.connectors.utils.NameValuePair;
 import com.socialcomputing.wps.server.planDictionnary.connectors.utils.UrlHelper;
-import static com.socialcomputing.wps.server.planDictionnary.connectors.utils.UrlHelper.Type.*;
 
 @Path("/")
 public class RestProvider {
@@ -78,14 +76,12 @@ public class RestProvider {
         	      
             UrlHelper bluekiwiClient = new UrlHelper(POST, RestProvider.BK_URL + "/api/v3/post/_search");
             bluekiwiClient.addParameter("q", q.toString());
-            
+            bluekiwiClient.addParameter("oauth_token", token);
             bluekiwiClient.openConnections();
+            
             JsonNode response = mapper.readTree(bluekiwiClient.getStream());
-            // No results found
-            if(!response.has("hits")) {
-            	
-            }
-            else {
+            
+            if(response.has("hits")) {
             	/*
             	 {"fieldsMask":"list",
             	  "hits":[
@@ -99,52 +95,36 @@ public class RestProvider {
             	 */
             	JsonNode hits = response.get("hits");
             	
-            	// Iterate through posts results
+                // Iterate through posts results
             	for(JsonNode hit : (ArrayNode) hits) {
             		Attribute att = storeHelper.addAttribute(hit.get("id").getTextValue());
             		att.addProperty("name", hit.get("title").getTextValue());
             		att.addProperty("url", hit.get("url").getTextValue());
+            	
+            	
+	            	// Author
+	                UrlHelper urlPost = new UrlHelper(RestProvider.BK_URL + "/api/v3/post/" + att.getId());
+	                urlPost.addParameter("oauth_token", token);
+	                urlPost.openConnections();
+	                JsonNode cpost = mapper.readTree(urlPost.getStream());
+	                addAuthor(storeHelper, cpost, att);
+	                urlPost.closeConnections();
+	                
+	                
+	                // Comments authors 
+	                UrlHelper urlComments = new UrlHelper(RestProvider.BK_URL + "/api/v3/post/" + att.getId() + "/_reactions");
+	                urlComments.addParameter("oauth_token", token);
+	                urlComments.openConnections();
+	                JsonNode commentsResponse = mapper.readTree(urlComments.getStream());
+	                if(commentsResponse.has("hits")) {
+		                JsonNode comments = commentsResponse.get("hits");
+		                for(JsonNode comment : (ArrayNode) comments) {
+		                	addCommentAuthor(storeHelper, comment, att);
+		                }
+	                }
+	                urlComments.closeConnections();
             	}
-            	
-            	// Author
-            	
-            	
             }
-            /*
-            for (JsonNode idea : (ArrayNode) ideas) {
-                Attribute att = storeHelper.addAttribute(String.valueOf(idea.get("id").getIntValue()));
-                att.addProperty("name", idea.get("title").getTextValue());
-                att.addProperty("url", idea.get("permalink").getTextValue());
-                
-                // Author
-                Entity ent = storeHelper.addEntity(String.valueOf(idea.get("user_id").getIntValue()));
-                ent.addAttribute( att, 1);
-                // Comments
-                UrlHelper urlComments = new UrlHelper( DimeloRestProvider.IDEA_API_URL + "/1.0/feedbacks/" + att.getId() + "/comments");
-                urlComments.addParameter( "access_token", DimeloRestProvider.ACCESS_TOKEN);
-                urlComments.openConnections();
-                JsonNode commments = mapper.readTree(urlComments.getStream());
-                for (JsonNode comment : (ArrayNode) commments) {
-                    if( comment.has("user_id")) {
-                        ent = storeHelper.addEntity(String.valueOf(comment.get("user_id").getIntValue()));
-                        ent.addAttribute( att, 1);
-                    }
-                }
-                urlComments.closeConnections();
-                // Votes
-                UrlHelper urlVotes = new UrlHelper( DimeloRestProvider.IDEA_API_URL + "/1.0/feedbacks/" + att.getId() + "/comments");
-                urlVotes.addParameter( "access_token", DimeloRestProvider.ACCESS_TOKEN);
-                urlVotes.openConnections();
-                JsonNode votes = mapper.readTree(urlVotes.getStream());
-                for (JsonNode vote : (ArrayNode) votes) {
-                    if( vote.has("user_id")) {
-                        ent = storeHelper.addEntity(String.valueOf(vote.get("user_id").getIntValue()));
-                        ent.addAttribute( att, 1);
-                    }
-                }
-                urlVotes.closeConnections();
-            }
-            urlIdeas.closeConnections();*/
             bluekiwiClient.closeConnections();
         }
         catch (Exception e) {
@@ -153,6 +133,40 @@ public class RestProvider {
         return storeHelper.toJson();
     }
     
+    
+    /**
+     * Helper function to add the content author to the entities
+     * The content can be a post or a comment
+     * 
+     * @param storeHelper an instance of a StoreHelper used to manipulate and construct the jmi json format for the RestEntityConnector
+     * @param content     a JsonNode of the current content being read
+     * @param att         the attribute (post) to which this entity is linked 
+     */
+    public static void addAuthor(StoreHelper storeHelper, JsonNode content, Attribute att) {
+    	JsonNode author = content.get("author");
+        Entity ent = storeHelper.addEntity(author.get("id").getTextValue());
+        ent.addProperty("name", "" + author.get("firstName").getTextValue() + " " + author.get("lastName").getTextValue());
+        ent.addProperty("url", author.get("url").getTextValue());
+        ent.addAttribute(att, 1); 
+    }
+    
+    /**
+     * Helper function to add all comments author to the entities
+     * It is recursively called for nasted comments
+     * 
+     * @param storeHelper an instance of a StoreHelper used to manipulate and construct the jmi json format for the RestEntityConnector
+     * @param content     a JsonNode of the current comment being read
+     * @param att         the attribute (post) to which this entity is linked 
+     */
+    public static void addCommentAuthor(StoreHelper storeHelper, JsonNode content, Attribute att) {
+    	addAuthor(storeHelper, content, att);
+    	JsonNode reactions = content.get("reactions");
+    	if(!reactions.isNull()) {
+    		for(JsonNode reaction : (ArrayNode) reactions) {
+    			addCommentAuthor(storeHelper, reaction, att);
+    		}
+    	}
+    }
     
     /**
      * Helper function used to get a user access token from a 
