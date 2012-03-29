@@ -1,8 +1,12 @@
 package com.socialcomputing.bluekiwi.services;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -22,6 +26,7 @@ import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.ObjectNode;
 
 import com.socialcomputing.bluekiwi.utils.HashUtil;
 import com.socialcomputing.wps.server.planDictionnary.connectors.WPSConnectorException;
@@ -30,6 +35,7 @@ import com.socialcomputing.wps.server.planDictionnary.connectors.datastore.Entit
 import com.socialcomputing.wps.server.planDictionnary.connectors.datastore.StoreHelper;
 import com.socialcomputing.wps.server.planDictionnary.connectors.utils.NameValuePair;
 import com.socialcomputing.wps.server.planDictionnary.connectors.utils.UrlHelper;
+import static com.socialcomputing.wps.server.planDictionnary.connectors.utils.UrlHelper.Type.*;
 
 @Path("/")
 public class RestProvider {
@@ -42,6 +48,7 @@ public class RestProvider {
     public static final String CALLBACK_URL = "http://bluekiwi.wps.cloudbees.net/";
     public static final String AUTHORIZE_ENDPOINT = BK_URL + "/oauth2/authorize";
     public static final String TOKEN_ENDPOINT = BK_URL + "/oauth2/token";
+    public static final int SPACE_ID = 23;
     
     private static final ObjectMapper mapper = new ObjectMapper();
     
@@ -61,13 +68,48 @@ public class RestProvider {
     
     String build(String query, String token) {
         StoreHelper storeHelper = new StoreHelper();
+        
         try {
-            UrlHelper urlIdeas = new UrlHelper(RestProvider.BK_URL + "/api/v3/post/_search");
-            urlIdeas.addParameter("oauth_token", token);
-            urlIdeas.addParameter("limit", "50");
-            urlIdeas.addParameter("text", query);
-            urlIdeas.openConnections();
-            JsonNode ideas = mapper.readTree(urlIdeas.getStream());
+        	ObjectMapper mapper = new ObjectMapper();
+        	ObjectNode q = mapper.createObjectNode();
+        	q.put("text", query);
+        	ArrayNode spaces = q.putArray("destinationIds");
+        	spaces.add(SPACE_ID);
+        	      
+            UrlHelper bluekiwiClient = new UrlHelper(POST, RestProvider.BK_URL + "/api/v3/post/_search");
+            bluekiwiClient.addParameter("q", q.toString());
+            
+            bluekiwiClient.openConnections();
+            JsonNode response = mapper.readTree(bluekiwiClient.getStream());
+            // No results found
+            if(!response.has("hits")) {
+            	
+            }
+            else {
+            	/*
+            	 {"fieldsMask":"list",
+            	  "hits":[
+            	  	{"id":"5159",
+            	  	 "type":"bookmark",
+            	  	 "url":"http:\/\/partners.sandboxbk.net\/people\/in\/Fayaz_Goulam\/conversations\/note?id=5159",
+            	  	 "title":"D\u00e9couvrez et installer le plugin Wordpress Just Map It! | Social Computing"
+            	  	}
+            	  ]
+            	 }
+            	 */
+            	JsonNode hits = response.get("hits");
+            	
+            	// Iterate through posts results
+            	for(JsonNode hit : (ArrayNode) hits) {
+            		Attribute att = storeHelper.addAttribute(hit.get("id").getTextValue());
+            		att.addProperty("name", hit.get("title").getTextValue());
+            		att.addProperty("url", hit.get("url").getTextValue());
+            	}
+            	
+            	// Author
+            	
+            	
+            }
             /*
             for (JsonNode idea : (ArrayNode) ideas) {
                 Attribute att = storeHelper.addAttribute(String.valueOf(idea.get("id").getIntValue()));
@@ -103,6 +145,7 @@ public class RestProvider {
                 urlVotes.closeConnections();
             }
             urlIdeas.closeConnections();*/
+            bluekiwiClient.closeConnections();
         }
         catch (Exception e) {
             return StoreHelper.ErrorToJson(e);
@@ -139,7 +182,7 @@ public class RestProvider {
     	return token;
     }
     
-    
+
     /**
      * Helper function to add the supertoken with the appropriate 
      * sha1 signature before the api call
@@ -149,30 +192,55 @@ public class RestProvider {
      * @param urlHelper  the http client 
      * @param superToken super token to add 
      */
-    public static void addSuperToken(UrlHelper urlHelper, String superToken) {
+    public static UrlHelper addSuperToken(UrlHelper urlHelper, String superToken) {
     	// Signing the request
-    	long now = new Date().getTime()  / 1000;
+    	long now = new Date().getTime() / 1000;
     	
-    	// Add oauth required parameters 
-    	urlHelper.addParameter("oauth_timestamp", String.valueOf(now));
-    	urlHelper.addParameter("oauth_token", superToken);
+    	// Get a copy of urlHelper parameters
+    	List<NameValuePair> parameters = new ArrayList<NameValuePair>(urlHelper.getParameters());
+    	
+    	// Add oauth_timestamp and oauth_token to the list
+    	NameValuePair timestamp = new NameValuePair("oauth_timestamp", String.valueOf(now));
+    	NameValuePair token = new NameValuePair("oauth_token", superToken);
+    	parameters.add(timestamp);
+    	parameters.add(token);
     	
     	// Order parameters by name, ascending
-    	List<NameValuePair> parameters = urlHelper.getParameters();
     	Collections.sort(parameters, new Comparator<NameValuePair>() {
             public int compare(NameValuePair e1, NameValuePair e2) {
                 return e1.getName().compareTo(e2.getName());
             }
         });
     	
-    	// Generates the sha1 signature of the parameters and add it to the parameters
+    	// Generates the sha1 signature of the parameters
     	String signParameters = "";
     	for(NameValuePair parameter : parameters) {
     		signParameters += "&" + parameter.getName() + "=" + parameter.getValue();  
     	}
     	signParameters = signParameters.substring(1);
-    	String signature = HashUtil.getPHPSha1(RestProvider.CLIENT_ID + "&" + signParameters + "&" + RestProvider.CLIENT_SECRET);    	
-    	urlHelper.addParameter("oauth_signature", signature);
+    	String signature = HashUtil.getPHPSha1(RestProvider.CLIENT_ID + "&" + signParameters + "&" + RestProvider.CLIENT_SECRET);
+    	
+    	
+    	switch (urlHelper.getType()) {
+    	case GET:
+    		urlHelper.addParameter(timestamp);
+    		urlHelper.addParameter(token);
+    		urlHelper.addParameter("oauth_signature", signature);
+    		break;
+    	case POST:
+    		StringBuilder sb = new StringBuilder();
+    		sb.append(urlHelper.getUrl());
+    		try {
+				sb.append("?").append(timestamp.getName()).append("=").append(URLEncoder.encode(timestamp.getValue(), "UTF-8"));
+				sb.append("&").append(token.getName()).append("=").append(URLEncoder.encode(token.getValue(), "UTF-8"));
+				sb.append("&").append("oauth_signature").append("=").append(URLEncoder.encode(signature, "UTF-8"));
+    		} 
+    		catch (UnsupportedEncodingException e) {
+    			// Should not happen 
+    		}
+    		urlHelper.setUrl(sb.toString());
+    		break;
+    	}
+    	return urlHelper;
     }
-     
 }

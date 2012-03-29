@@ -1,4 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<%@page import="org.codehaus.jackson.node.ArrayNode"%>
+<%@page import="org.codehaus.jackson.node.ObjectNode"%>
 <%@page import="com.socialcomputing.wps.server.planDictionnary.connectors.utils.UrlHelper.Type"%>
 <%@page import="org.codehaus.jackson.map.ObjectMapper"%>
 <%@page import="org.codehaus.jackson.JsonNode"%>
@@ -36,14 +38,18 @@ urlHelper.openConnections();
 ObjectMapper mapper = new ObjectMapper();
 JsonNode jsonData = mapper.readTree(urlHelper.getStream());
 */
+ObjectMapper mapper = new ObjectMapper();
+ObjectNode q = mapper.createObjectNode();
+q.put("text", "Wordpress");
+//ArrayNode spaces = q.putArray("destinationIds");
+//spaces.add(23);
 
 UrlHelper urlHelper = new UrlHelper(RestProvider.BK_URL + "/api/v3/post/_search");
 urlHelper.setType(Type.POST);
-urlHelper.addParameter("text", "just map it");
-urlHelper.addParameter("destinationIds", "23");
+urlHelper.addParameter("q", q.toString());
 RestProvider.addSuperToken(urlHelper, RestProvider.SUPER_TOKEN);
 urlHelper.openConnections();
-ObjectMapper mapper = new ObjectMapper();
+
 JsonNode jsonData = mapper.readTree(urlHelper.getStream());
 %>
 <div>
