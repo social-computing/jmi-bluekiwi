@@ -43,6 +43,16 @@ if( query == null) {
 <link rel="stylesheet" type="text/css" href="./jmi-client/jmi-client.css" />
 <script type="text/javascript" src="./jmi-client/jmi-client.js"></script>
 <script type="text/javascript">
+var breadcrumbTitles = { shortTitle: 'Initial query', longTitle: 'Query: <%=query%>' };
+function JMIF_breadcrumbTitlesFunc(event) {
+	if( event.type === JMI.Map.event.EMPTY) {
+		return {shortTitle: 'Sorry, the map is empty.', longTitle: 'Sorry, the map is empty.'};
+	}
+	if( event.type === JMI.Map.event.ERROR) {
+		return {shortTitle: 'Sorry, an error occured.', longTitle: 'Sorry, an error occured. Error: ' + event.message};
+	}
+	return breadcrumbTitles;
+}
 function getParams() {
 	var p = {
 		map: 'BlueKiwi',
@@ -59,10 +69,8 @@ function GoMap() {
 		var map = JMI.Map({
 					parent: 'map', 
 					swf: './jmi-client/jmi-flex-1.0-SNAPSHOT.swf', 
-					//server: 'http://server.just-map-it.com', 
-					server: 'http://localhost:8080/jmi-server/', 
-					//client: JMI.Map.SWF,
-					parameters: parameters
+					server: 'http://server.just-map-it.com' 
+					//server: 'http://localhost:8080/jmi-server/'
 				});
 		map.addEventListener(JMI.Map.event.READY, function(event) {
 		} );
@@ -70,11 +78,11 @@ function GoMap() {
 			window[event.fn](event.map, event.args);
 		} );
 		map.addEventListener(JMI.Map.event.EMPTY, function(event) {
-			document.getElementById("status").innerHTML = 'Map is empty.';
 		} );
 		map.addEventListener(JMI.Map.event.ERROR, function(event) {
-			document.getElementById("status").innerHTML = 'An error occured: ' + event.message;
 		} );
+		breadcrumb = new JMI.extensions.Breadcrumb('breadcrumb',map,{'namingFunc':JMIF_breadcrumbTitlesFunc,'thumbnail':{}});
+		map.compute( parameters);
 	};
 };
 function JMIF_Navigate(map, url) {
@@ -83,15 +91,17 @@ function JMIF_Navigate(map, url) {
 function JMIF_Focus(map, args) {
 	var parameters = getParams();
 	parameters.entityId = args[0];
+	breadcrumbTitles.shortTitle = "Focus";
+	breadcrumbTitles.longTitle = "Focus on: " + args[1];
 	map.compute( parameters);
-	document.getElementById("status").innerHTML = "<i>Focus on:</i> " + args[1];
 }
 function JMIF_Center(map, args) {
 	var parameters = getParams();
 	parameters.attributeId = args[0];
 	parameters.analysisProfile = "DiscoveryProfile";
+	breadcrumbTitles.shortTitle = "Centered";
+	breadcrumbTitles.longTitle = "Centered on: " + args[1];
 	map.compute( parameters);
-	document.getElementById("status").innerHTML = "<i>Centered on:</i> " + args[1];
 }
 </script>
 </head>
@@ -109,7 +119,7 @@ function JMIF_Center(map, args) {
 	</tr>
 </table>
 </form>
-<div id="status">&nbsp;</div>
+<div id="breadcrumb">&nbsp;</div>
 <div id="map"></div>
 </body>
 </html>
