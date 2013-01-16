@@ -1,18 +1,18 @@
 <?php
 require_once 'Zend/Http/Client.php';
 
-define('CLIENT_ID', '914d4ad0f30e01d3b48c');
-define('CLIENT_SECRET', 'c62cee6c330a39f0a786');
-define('SUPER_TOKEN', 'f523902728af04407ae2045975bfb0ff');
-define('BK_URL', 'http://partners.sandboxbk.net');
+define('CLIENT_ID', '0093584955edfe9e5312');
+define('CLIENT_SECRET', '5ba5d71d6cbb3fe5a539');
+define('SUPER_TOKEN', 'e169290f3065894c30e70d8aaa0033f2');
+define('BK_URL', 'https://lecko.bluekiwi.net');
 
-// $searchInfo = '{"text": "social", "destinationIds" : [23]}';
-$searchInfo = '{"text": "cartographie", "destinationIds" : [23]}';
+// $searchInfo = '{"text": "social", "destinationType": "space", "destinationIds": [2,26]}';
+$searchInfo = '{"text": "social"}';
 
 // Sign the request
 $time = time();
 $strParams = "access_token=" . SUPER_TOKEN . "&oauth_timestamp=" . $time . "&q=" . $searchInfo;
-//$strParams = "oauth_timestamp=" . $time . "&access_token=" . SUPER_TOKEN . "&q=" . $searchInfo;
+//$strParams = "access_token=" . SUPER_TOKEN . "&q=" . $searchInfo . "&oauth_timestamp=" . $time;
 $signature = sha1(CLIENT_ID . "&" . $strParams . "&" . CLIENT_SECRET);
 
 $client = new Zend_Http_Client();

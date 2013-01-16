@@ -26,9 +26,11 @@ import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.socialcomputing.bluekiwi.utils.HashUtil;
-import com.socialcomputing.wps.server.planDictionnary.connectors.WPSConnectorException;
+import com.socialcomputing.wps.server.planDictionnary.connectors.JMIException;
 import com.socialcomputing.wps.server.planDictionnary.connectors.datastore.Attribute;
 import com.socialcomputing.wps.server.planDictionnary.connectors.datastore.Entity;
 import com.socialcomputing.wps.server.planDictionnary.connectors.datastore.StoreHelper;
@@ -47,6 +49,8 @@ public class RestProvider {
     public static final String AUTHORIZE_ENDPOINT = BK_URL + "/oauth2/authorize";
     public static final String TOKEN_ENDPOINT = BK_URL + "/oauth2/token";
     public static final int SPACE_ID = 23;
+    
+    private static final Logger LOG = LoggerFactory.getLogger(RestProvider.class);
     
     private static final ObjectMapper mapper = new ObjectMapper();
     
@@ -80,26 +84,28 @@ public class RestProvider {
             bluekiwiClient.openConnections();
             
             JsonNode response = mapper.readTree(bluekiwiClient.getStream());
-            
-            if(response.has("hits")) {
-            	/*
-            	 {"fieldsMask":"list",
-            	  "hits":[
-            	  	{"id":"5159",
-            	  	 "type":"bookmark",
-            	  	 "url":"http:\/\/partners.sandboxbk.net\/people\/in\/Fayaz_Goulam\/conversations\/note?id=5159",
-            	  	 "title":"D\u00e9couvrez et installer le plugin Wordpress Just Map It! | Social Computing"
-            	  	}
-            	  ]
-            	 }
-            	 */
-            	JsonNode hits = response.get("hits");
+
+        	/*
+	       	 {"fieldsMask":"list",
+	       	  "items":[
+	       	  	{"id":"5159",
+	       	  	 "type":"bookmark",
+	       	  	 "url":"http:\/\/partners.sandboxbk.net\/people\/in\/Fayaz_Goulam\/conversations\/note?id=5159",
+	       	  	 "title":"D\u00e9couvrez et installer le plugin Wordpress Just Map It! | Social Computing"
+	       	  	}
+	       	  ]
+	       	 }
+        	*/
+            if(response.has("items")) {
+            	JsonNode items = response.get("items");
+            	LOG.debug("number of results : {}", items.size());
             	
                 // Iterate through posts results
-            	for(JsonNode hit : (ArrayNode) hits) {
-            		Attribute att = storeHelper.addAttribute(hit.get("id").getTextValue());
-            		att.addProperty("name", hit.get("title").getTextValue());
-            		att.addProperty("url", hit.get("url").getTextValue());
+            	for(JsonNode item : (ArrayNode) items) {
+            		Attribute att = storeHelper.addAttribute(item.get("id").getTextValue());
+            		LOG.debug("content found with id = {}", att.getId());
+            		att.addProperty("name", item.get("title").getTextValue());
+            		att.addProperty("url", item.get("url").getTextValue());
             	
             	
 	            	// Author
@@ -116,8 +122,8 @@ public class RestProvider {
 	                urlComments.addParameter("oauth_token", token);
 	                urlComments.openConnections();
 	                JsonNode commentsResponse = mapper.readTree(urlComments.getStream());
-	                if(commentsResponse.has("hits")) {
-		                JsonNode comments = commentsResponse.get("hits");
+	                if(commentsResponse.has("items")) {
+		                JsonNode comments = commentsResponse.get("items");
 		                for(JsonNode comment : (ArrayNode) comments) {
 		                	addCommentAuthor(storeHelper, comment, att);
 		                }
@@ -144,6 +150,7 @@ public class RestProvider {
      */
     public static void addAuthor(StoreHelper storeHelper, JsonNode content, Attribute att) {
     	JsonNode author = content.get("author");
+    	LOG.debug("author found with id = {}", author.get("id").getTextValue());
         Entity ent = storeHelper.addEntity(author.get("id").getTextValue());
         ent.addProperty("name", "" + author.get("firstName").getTextValue() + " " + author.get("lastName").getTextValue());
         ent.addProperty("url", author.get("url").getTextValue());
@@ -181,7 +188,7 @@ public class RestProvider {
      * @throws WPSConnectorException
      */
     public static String getAccessToken(String code, HttpSession session) 
-    		throws JsonProcessingException, IOException, WPSConnectorException {
+    		throws JsonProcessingException, IOException, JMIException {
     	UrlHelper urlHelper = new UrlHelper(UrlHelper.Type.POST, TOKEN_ENDPOINT);
     	urlHelper.addParameter("client_id", CLIENT_ID);
     	urlHelper.addParameter("client_secret", CLIENT_SECRET);
