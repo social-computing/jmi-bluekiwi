@@ -1,7 +1,7 @@
-Just Map It! - Labs
-=====================
+Just Map It! - Bluekiwi
+=======================
 
-Applications using Just Map It! hosted in labs
+Just Map It! Bluekiwi application
 
 
 Copyright
